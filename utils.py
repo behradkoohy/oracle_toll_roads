@@ -83,7 +83,7 @@ def get_new_travel_times(roadQueues, roadVDFS, time, arrived_vehicles, time_out_
 
 
 def alternative_get_new_travel_times(
-    roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
+    roadQueues, roadVDFS, time, arrived_vehicles, time_out_car, time_out_car_partial_solution
 ):
     new_travel_times = {}
     new_road_queues = {}
@@ -123,11 +123,29 @@ def alternative_get_new_travel_times(
         """
         cars_on_road = len(new_road_queues[road])
         # NOTE: This is taking up 88.5% of our time
-        cars_leaving_during_trip = {
-            ti: time_out_car[road][ti]
-            for ti in range(time + 1, round(max_travel_eta) + 1)
-            if time_out_car[road][ti] > 0
-        }
+        # cars_leaving_during_trip_old = {
+        #     ti: time_out_car[road][ti]
+        #     for ti in range(time + 1, round(max_travel_eta) + 1)
+        #     if time_out_car[road][ti] > 0
+        # }
+
+        # remove the current time from the partial solution if it exists
+        time_out_car_partial_solution[road].pop(time, None)
+        # next, we need to know what the max key in the partial soln is
+        current_max_partial_sol = time if len(time_out_car_partial_solution[road]) == 0 else max(time_out_car_partial_solution[road])
+        # if the max is greater than the max of the search range, we compute up to the range
+        # print(current_max_partial_sol, round(max_travel_eta))
+        if current_max_partial_sol < round(max_travel_eta):
+            for ti in range(current_max_partial_sol + 1, round(max_travel_eta) + 1):
+                if time_out_car[road][ti] > 0:
+                    time_out_car_partial_solution[road][ti] = time_out_car[road][ti]
+        # if the max is lesser than the max of the search range, we can drop the irrelevant values
+        elif current_max_partial_sol > round(max_travel_eta):
+            for ti in range(round(max_travel_eta) + 1, current_max_partial_sol + 1):
+                time_out_car_partial_solution[road].pop(time, None)
+        # set cars_leaving_during_trip to the road
+        cars_leaving_during_trip = time_out_car_partial_solution[road]
+
         cumsum_base = 0
         cars_leaving_cumsum = [
             cumsum_base := cumsum_base + n for n in cars_leaving_during_trip.values()
@@ -181,7 +199,7 @@ def alternative_get_new_travel_times(
         #     maintained_time_out = time_out_at_x
         #     x_at_maint_time_out = x
         #     new_travel_times[road] = time_out_at_x - x
-    return new_travel_times, new_road_queues, arrived_vehicles
+    return new_travel_times, new_road_queues, arrived_vehicles, time_out_car_partial_solution
 
 
 def evaluate_solution(solution, car_dist_arrival, post_eval=False, seq_decisions=False):
@@ -200,13 +218,14 @@ def evaluate_solution(solution, car_dist_arrival, post_eval=False, seq_decisions
     time_out_car = {r: defaultdict(int) for r in roadVDFS.keys()}
     arrived_vehicles = []
     time = 0
+    time_out_car_partial_solution = {r: {time + 1: 0} for r in roadVDFS.keys()}
     arrival_timestep_dict = Counter(car_dist_arrival)
     sol_deque = deque(solution)
     while not is_simulation_complete(roadQueues, time):
         # get the new vehicles at this timestep
 
-        roadTravelTime, roadQueues, arrived_vehicles = alternative_get_new_travel_times(
-            roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
+        roadTravelTime, roadQueues, arrived_vehicles, time_out_car_partial_solution = alternative_get_new_travel_times(
+            roadQueues, roadVDFS, time, arrived_vehicles, time_out_car, time_out_car_partial_solution
         )
 
         # Add new vehicles from here
@@ -229,12 +248,8 @@ def evaluate_solution(solution, car_dist_arrival, post_eval=False, seq_decisions
                 time_out_car[decision][round(time + roadTravelTime[decision])] + 1
             )
             if seq_decisions:
-                (
-                    roadTravelTime,
-                    roadQueues,
-                    arrived_vehicles,
-                ) = alternative_get_new_travel_times(
-                    roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
+                roadTravelTime, roadQueues, arrived_vehicles, time_out_car_partial_solution = alternative_get_new_travel_times(
+                    roadQueues, roadVDFS, time, arrived_vehicles, time_out_car, time_out_car_partial_solution
                 )
 
         time += 1

@@ -51,7 +51,7 @@ roadTravelTime = {r: roadVDFS[r](0) for r in roadVDFS.keys()}
 arrival_timestep_dict = Counter(car_dist_arrival)
 arrived_vehicles = []
 time_out_car = {r: defaultdict(int) for r in roadVDFS.keys()}
-
+time_out_car_partial_solution = {r: {time+1 : 0} for r in roadVDFS.keys()}
 # def get_new_travel_times(roadQueues, roadVDFS, time, arrived_vehicles, time_out_car):
 #     new_travel_times = {}
 #     new_road_queues = {}
@@ -95,8 +95,8 @@ while not is_simulation_complete(roadQueues, time):
     num_vehicles_arrived = arrival_timestep_dict[time]
     timestep_decisions = []
     for vehicle in range(num_vehicles_arrived):
-        roadTravelTime, roadQueues, arrived_vehicles = alternative_get_new_travel_times(
-            roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
+        roadTravelTime, roadQueues, arrived_vehicles, time_out_car_partial_solution = alternative_get_new_travel_times(
+            roadQueues, roadVDFS, time, arrived_vehicles, time_out_car, time_out_car_partial_solution
         )
         if roadTravelTime[1] < roadTravelTime[2]:
             quickest_road, travel_time = 1, roadTravelTime[1]
@@ -109,25 +109,25 @@ while not is_simulation_complete(roadQueues, time):
         roadQueues[quickest_road] = roadQueues[quickest_road] + [
             (quickest_road, time, time + travel_time, time + travel_time)
         ]
-        # print(time, vehicle, roadTravelTime, quickest_road)
-        print(
-            "I am vehicle",
-            vehicle,
-            ". I am choosing",
-            quickest_road,
-            "at time",
-            time,
-            "with travel time",
-            travel_time,
-            "and ETA of",
-            time + travel_time,
-            ". The alternative is",
-            slow_road,
-            "with travel time",
-            slow_tt,
-            "and ETA of",
-            time + slow_tt,
-        )
+        print(time, vehicle, roadTravelTime, quickest_road)
+        # print(
+        #     "I am vehicle",
+        #     vehicle,
+        #     ". I am choosing",
+        #     quickest_road,
+        #     "at time",
+        #     time,
+        #     "with travel time",
+        #     travel_time,
+        #     "and ETA of",
+        #     time + travel_time,
+        #     ". The alternative is",
+        #     slow_road,
+        #     "with travel time",
+        #     slow_tt,
+        #     "and ETA of",
+        #     time + slow_tt,
+        # )
         # print({r:len(x) for r,x in roadQueues.items()})
         solution.append(quickest_road)
         time_out_car[quickest_road][round(time + travel_time)] = (

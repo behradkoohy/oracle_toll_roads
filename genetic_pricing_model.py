@@ -51,7 +51,6 @@ print(len(car_dist_arrival))
 solution = [1 for _ in range(60+2)]
 time = 0
 
-
 def evaluate_solution(solution, car_dist_arrival, post_eval=False, seq_decisions=False):
     """
     solution: list of roads for the vehicles to take, i.e. [1,1,2,2,1,1,2,....,]
@@ -75,17 +74,19 @@ def evaluate_solution(solution, car_dist_arrival, post_eval=False, seq_decisions
     roadPrices = {r: 20.0 for r in roadVDFS.keys()}
 
     time_out_car = {r: defaultdict(int) for r in roadVDFS.keys()}
-
+    # do we need this? or can we get away with not including values that are 0, i.e. 0 here
+    # time_out_car_partial_solution = {r: {t: 0 for t in range(0, roadVDFS[r](0))} for r in roadVDFS.keys()}
     arrived_vehicles = []
     time = 0
+    time_out_car_partial_solution = {r: {time+1 : 0} for r in roadVDFS.keys()}
 
     sol_deque = deque(solution)
     car_vot_deque = deque(car_vot)
     while not reduced_is_simulation_complete(roadQueues, time):
         # get the new vehicles at this timestep
 
-        roadTravelTime, roadQueues, arrived_vehicles = alternative_get_new_travel_times(
-            roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
+        roadTravelTime, roadQueues, arrived_vehicles, time_out_car_partial_solution = alternative_get_new_travel_times(
+            roadQueues, roadVDFS, time, arrived_vehicles, time_out_car, time_out_car_partial_solution
         )
         roadPrices = {
             r: pricing_dict[sol_deque.popleft()](roadPrices[r]) for r in roadVDFS.keys()
@@ -132,8 +133,8 @@ def evaluate_solution(solution, car_dist_arrival, post_eval=False, seq_decisions
                     time_out_car[decision][round(time + roadTravelTime[decision])] + 1
             )
             if seq_decisions:
-                roadTravelTime, roadQueues, arrived_vehicles = alternative_get_new_travel_times(
-                    roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
+                roadTravelTime, roadQueues, arrived_vehicles, time_out_car_partial_solution = alternative_get_new_travel_times(
+                    roadQueues, roadVDFS, time, arrived_vehicles, time_out_car, time_out_car_partial_solution
                 )
         time += 1
     for road, queue in roadQueues.items():
@@ -175,7 +176,7 @@ fitness_function = fitness_func
 
 num_generations = 500
 
-sol_per_pop = 75
+sol_per_pop = 30
 num_parents_mating = round(sol_per_pop / 4)
 keep_elitism = num_parents_mating
 num_genes = 62
