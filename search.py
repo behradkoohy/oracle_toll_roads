@@ -7,8 +7,7 @@ import numpy.random as nprand
 from numpy import mean, quantile, median, max
 from numpy import min as nmin
 
-from utils import volume_delay_function, evaluate_solution, reduced_evaluate_solution
-
+from utils import volume_delay_function, evaluate_solution, reduced_evaluate_solution, write_solutions_to_file
 import pygad
 
 n_cars = 100
@@ -37,9 +36,12 @@ car_dist_arrival = list(
 print(sorted(car_dist_arrival))
 
 
-# print(evaluate_solution([2] + [1 for _ in range(len(car_dist_arrival)-1)], car_dist_arrival))
+results_dict = {}
+
 def fitness_func(ga_instance, solution, solution_idx):
-    return reduced_evaluate_solution(solution, car_dist_arrival, seq_decisions=True)
+    score = reduced_evaluate_solution(solution, car_dist_arrival, seq_decisions=True)
+    results_dict[''.join(map(str, map(int, solution)))] = score
+    return score
 
 
 solution_pool = []
@@ -47,9 +49,9 @@ solution_pool = []
 gene_space = [1, 2]
 fitness_function = fitness_func
 
-num_generations = 100
+num_generations = 1000
 
-sol_per_pop = 200
+sol_per_pop = 2000
 num_parents_mating = round(sol_per_pop / 4)
 keep_elitism = num_parents_mating
 num_genes = 100
@@ -72,7 +74,7 @@ def on_generation_progress(ga):
     pbar.update(1)
 
 
-for x in range(10):
+for x in range(1):
     with tqdm.tqdm(total=num_generations) as pbar:
         ga_instance = pygad.GA(
             num_generations=num_generations,
@@ -106,5 +108,7 @@ for x in range(10):
     solution_pool.append((list(solution), solution_fitness))
     # evaluate_solution(solution, car_dist_arrival, post_eval=True)
 
-with open("solution_pool.json", "w+") as f:
-    json.dump(solution_pool, f)
+# with open("solution_pool.json", "w+") as f:
+#     json.dump(solution_pool, f)
+print("Number of solutions explored:", len(results_dict))
+# write_solutions_to_file(results_dict)

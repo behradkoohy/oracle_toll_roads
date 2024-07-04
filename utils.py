@@ -1,6 +1,9 @@
 from collections import Counter, deque, defaultdict
 from functools import partial
 
+import json
+
+
 import numpy as np
 from numpy import mean, quantile, median
 from numpy import min as nmin
@@ -9,6 +12,10 @@ from numpy import max as nmax
 
 timesteps = 30
 
+
+def write_solutions_to_file(results_dict, filename='results.json'):
+    with open (filename, 'w') as f:
+        json.dump(results_dict, f)
 
 def is_simulation_complete(roadQueues, time):
     if time < timesteps:
@@ -81,6 +88,12 @@ def get_new_travel_times(roadQueues, roadVDFS, time, arrived_vehicles, time_out_
             new_travel_times[road] = max_time_out - time
     return new_travel_times, new_road_queues, arrived_vehicles
 
+def get_cars_leaving_during_trip(time_out_car, road, time, max_travel_eta):
+    road_dict = time_out_car[road]  # Pre-fetch the dictionary for the specific road
+    end_time = round(max_travel_eta) + 1  # Calculate range endpoint once
+    timesteps_to_check = [ti for ti in range(time + 1, round(end_time) + 1) if road_dict[ti] > 0]
+    return {ti: road_dict[ti] for ti in timesteps_to_check}
+
 
 def alternative_get_new_travel_times(
     roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
@@ -95,39 +108,14 @@ def alternative_get_new_travel_times(
         road_vdf = roadVDFS[road]
         best_known_travel_time = road_vdf(len(new_road_queues[road]))
         max_travel_eta = time + best_known_travel_time
-        """
-        OLD APPROACH
-        """
-        # # Worst case travel time
-        # best_potential_eta = max_travel_eta
-        # # as a precaution, set the travel time to the maximum value
-        # # new_travel_times[road] = best_known_travel_time
-        # # now find all the cars that are leaving during their trip
-        # cars_leaving_during_trip = {
-        #     ti: time_out_car[road][ti]
-        #     for ti in range(time + 1, round(max_travel_eta) + 1)
-        #     if time_out_car[road][ti] > 0
-        # }
-        # total_cars_left_until_t = 0
-        # for x, n_vehicles in cars_leaving_during_trip.items():
-        #     total_cars_left_until_t += n_vehicles
-        #     # calculate what the ETA is if they left later on in the simulation
-        #     # We don't want to use x, we want the offset (timesteps after x, i.e. how long you will wait) for the travel time
-        #     potential_eta = time + (x - time) + road_vdf(len(new_road_queues[road]) - total_cars_left_until_t)
-        #     if potential_eta < best_potential_eta:
-        #         best_potential_eta = potential_eta
-        #         best_known_travel_time = best_potential_eta - time
-        # new_travel_times[road] = best_known_travel_time
-        """
-        NEW APPROACH
-        """
         cars_on_road = len(new_road_queues[road])
         # NOTE: This is taking up 88.5% of our time
-        cars_leaving_during_trip = {
+        """cars_leaving_during_trip = {
             ti: time_out_car[road][ti]
             for ti in range(time + 1, round(max_travel_eta) + 1)
             if time_out_car[road][ti] > 0
-        }
+        }"""
+        cars_leaving_during_trip = get_cars_leaving_during_trip(time_out_car, road, time, max_travel_eta)
         cumsum_base = 0
         cars_leaving_cumsum = [
             cumsum_base := cumsum_base + n for n in cars_leaving_during_trip.values()
@@ -144,43 +132,6 @@ def alternative_get_new_travel_times(
         best_time_out = min(cars_leaving_during_trip_new_tt.values())
         # print(time, road, cars_leaving_during_trip, best_time_out)
         new_travel_times[road] = best_time_out
-
-        # vehicles_on_road = len(new_road_queues[road])
-        # road_vdf = roadVDFS[road]
-        # max_time_out = time + (road_vdf(vehicles_on_road))
-        # total_v_out_until_x = 0
-        # maintained_time_out = max_time_out
-        # x_at_maint_time_out = time
-        # new_travel_times[road] = max_time_out - time
-        # # print(max_time_out - x_at_maint_time_out)
-        # cars_leaving_during_trip = {
-        #     ti: time_out_car[road][ti]
-        #     for ti in range(time + 1, round(max_time_out) + 1)
-        #     if time_out_car[road][ti] > 0
-        # }
-        # cars_out_in_range = sum(cars_leaving_during_trip.values())
-        # if cars_out_in_range == 0:
-        #     new_travel_times[road] = max_time_out - time
-        # else:
-        #     for x, n_vehicles in cars_leaving_during_trip.items():
-        #         total_v_out_until_x += n_vehicles
-        #         travel_time_at_x = road_vdf(vehicles_on_road - total_v_out_until_x)
-        #         time_out_at_x = x + travel_time_at_x
-        #         # print((x-time), max_time_out, maintained_time_out, travel_time_at_x, time_out_at_x)
-        #         # print(max_time_out - time, time_out_at_x - time)
-        #         if maintained_time_out > (time_out_at_x - time):
-        #             # NOTE: There is something wrong here
-        #             # TODO: find the cause of the bug that causes difference in travel time between
-        #             # TODO: timestep 10 and 11. The travel time shouldn't increase so drastically
-        #             # TODO: because of one car.
-        #             # print("old time out:", max_time_out, "new time out", (time_out_at_x - time))
-        #             maintained_time_out = time_out_at_x - time
-        #             x_at_maint_time_out = x
-        #             new_travel_times[road] = time_out_at_x - time
-        # if time_out_at_x < maintained_time_out:
-        #     maintained_time_out = time_out_at_x
-        #     x_at_maint_time_out = x
-        #     new_travel_times[road] = time_out_at_x - x
     return new_travel_times, new_road_queues, arrived_vehicles
 
 
