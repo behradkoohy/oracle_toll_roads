@@ -94,6 +94,27 @@ def get_cars_leaving_during_trip(time_out_car, road, time, max_travel_eta):
     timesteps_to_check = [ti for ti in range(time + 1, round(end_time) + 1) if road_dict[ti] > 0]
     return {ti: road_dict[ti] for ti in timesteps_to_check}
 
+def cars_out_range_generator(time, max_travel_eta, road_dict):
+    n = time
+    while n <= round(max_travel_eta):
+        n = n + 1
+        if n in road_dict:
+            yield n, road_dict[n]
+
+
+def generate_new_road_travel_time(time_out_car, road, time, max_travel_eta, road_vdf, cars_on_road):
+    road_dict = time_out_car[road]
+    best_road_travel_time = max_travel_eta - time
+    cum_cars_left_at_t = 0
+    for future_timestep, cars_left in cars_out_range_generator(time, max_travel_eta, road_dict):
+        cum_cars_left_at_t += cars_left
+        time_offset = future_timestep - time
+        travel_time_at_fut_time = time_offset + road_vdf(cars_on_road - cum_cars_left_at_t)
+        # if best_road_travel_time < travel_time_at_fut_time:
+        #     return best_road_travel_time
+        if best_road_travel_time > travel_time_at_fut_time:
+            best_road_travel_time = travel_time_at_fut_time
+    return best_road_travel_time
 
 def alternative_get_new_travel_times(
     roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
@@ -115,6 +136,7 @@ def alternative_get_new_travel_times(
             for ti in range(time + 1, round(max_travel_eta) + 1)
             if time_out_car[road][ti] > 0
         }"""
+        # NOTE: this now has to completely change as time_out_car is no longer a defaultdict -> just a dict now
         cars_leaving_during_trip = get_cars_leaving_during_trip(time_out_car, road, time, max_travel_eta)
         cumsum_base = 0
         cars_leaving_cumsum = [
@@ -130,6 +152,7 @@ def alternative_get_new_travel_times(
             for ti, cars_out in cars_leaving_during_trip_sum.items()
         }
         best_time_out = min(cars_leaving_during_trip_new_tt.values())
+        # best_time_out = generate_new_road_travel_time(time_out_car, road, time, max_travel_eta, road_vdf, cars_on_road)
         # print(time, road, cars_leaving_during_trip, best_time_out)
         new_travel_times[road] = best_time_out
     return new_travel_times, new_road_queues, arrived_vehicles
@@ -259,6 +282,86 @@ def reduced_evaluate_solution(
             time_out_car[decision][round(time + roadTravelTime[decision])] = (
                 time_out_car[decision][round(time + roadTravelTime[decision])] + 1
             )
+            if seq_decisions:
+                (
+                    roadTravelTime,
+                    roadQueues,
+                    arrived_vehicles,
+                ) = alternative_get_new_travel_times(
+                    roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
+                )
+
+        time += 1
+    # Anything which is still in road queue can be added to arrived vehicles
+    for road, queue in roadQueues.items():
+        arrived_vehicles = arrived_vehicles + [car for car in roadQueues[road]]
+
+    travel_time = [c[3] - c[1] for c in arrived_vehicles]
+    # print([(c[3], c[1], c[3] - c[1]) for c in arrived_vehicles])
+    # print([c for c in arrived_vehicles if c[0] == 2])
+    # travel_time = np.asarray(travel_time, dtype=np.float64)
+    if post_eval:
+        print(
+            nmin(travel_time),
+            quantile(travel_time, 0.25),
+            mean(travel_time),
+            median(travel_time),
+            quantile(travel_time, 0.75),
+            nmax(travel_time),
+        )
+    return -mean(travel_time)
+
+def gen_evaluate_solution(
+    solution, car_dist_arrival, post_eval=False, seq_decisions=False
+):
+    """
+    solution: list of roads for the vehicles to take, i.e. [1,1,2,2,1,1,2,....,]
+    car_dist_arrival: list of arrival times of vehicles, length n, i.e. [1,1,2,3,...,30]
+    """
+    if len(solution) != len(car_dist_arrival):
+        raise Exception("Length of solution and car_dist_arrival must be equal")
+    roadQueues = {r: [] for r in set(solution)}
+    roadVDFS = {
+        1: partial(volume_delay_function, 0.656, 4.8, 15, 20),
+        2: partial(volume_delay_function, 0.656, 4.8, 30, 20),
+    }
+    roadTravelTime = {r: roadVDFS[r](0) for r in roadVDFS.keys()}
+    time_out_car = {r: {} for r in roadVDFS.keys()}
+    arrived_vehicles = []
+    time = 0
+    arrival_timestep_dict = Counter(car_dist_arrival)
+    sol_deque = deque(solution)
+    while not reduced_is_simulation_complete(roadQueues, time):
+        # get the new vehicles at this timestep
+
+        roadTravelTime, roadQueues, arrived_vehicles = alternative_get_new_travel_times(
+            roadQueues, roadVDFS, time, arrived_vehicles, time_out_car
+        )
+
+        # Add new vehicles from here
+        num_vehicles_arrived = arrival_timestep_dict[time]
+        if num_vehicles_arrived is None:
+            num_vehicles_arrived = 0
+        # just collect the decision of the vehicles
+        decisions = [sol_deque.popleft() for _ in range(num_vehicles_arrived)]
+        # add vehicles to the new queue
+        for decision in decisions:
+            roadQueues[decision] = roadQueues[decision] + [
+                (
+                    decision,
+                    time,
+                    time + roadTravelTime[decision],
+                    time + roadTravelTime[decision],
+                )
+            ]
+            # time_out_car[decision][round(time + roadTravelTime[decision])] = (
+            #     time_out_car[decision][round(time + roadTravelTime[decision])] + 1
+            # )
+            time_out_car[decision][round(time + roadTravelTime[decision])] = (
+                time_out_car[decision][round(time + roadTravelTime[decision]), 0] + 1
+            )
+
+
             if seq_decisions:
                 (
                     roadTravelTime,

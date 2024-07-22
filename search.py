@@ -39,7 +39,11 @@ print(sorted(car_dist_arrival))
 results_dict = {}
 
 def fitness_func(ga_instance, solution, solution_idx):
+    if ''.join(map(str, map(int, solution))) in results_dict:
+        print("Solution already computed: hit at", ga_instance.generations_completed)
+        return results_dict[''.join(map(str, map(int, solution)))]
     score = reduced_evaluate_solution(solution, car_dist_arrival, seq_decisions=True)
+    score = ((score-20.0)/(88.166-20.0))
     results_dict[''.join(map(str, map(int, solution)))] = score
     return score
 
@@ -49,7 +53,7 @@ solution_pool = []
 gene_space = [1, 2]
 fitness_function = fitness_func
 
-num_generations = 1000
+num_generations = 2000
 
 sol_per_pop = 2000
 num_parents_mating = round(sol_per_pop / 4)
@@ -69,9 +73,16 @@ crossover_type = "scattered"
 mutation_type = "random"
 mutation_percent_genes = 10
 
-
+old_dict_size = len(results_dict)
 def on_generation_progress(ga):
+    global old_dict_size
     pbar.update(1)
+    pbar.set_postfix_str(
+        "Size of solution dict: " + str(len(results_dict)) +
+        ", New solutions added: " + str(len(results_dict) - old_dict_size) +
+        ", Best solution fitness: " + str((ga.best_solutions_fitness[-1])*(88.166-20.0) + (20.0))
+    )
+    old_dict_size = len(results_dict)
 
 
 for x in range(1):
@@ -110,5 +121,8 @@ for x in range(1):
 
 # with open("solution_pool.json", "w+") as f:
 #     json.dump(solution_pool, f)
+
 print("Number of solutions explored:", len(results_dict))
-# write_solutions_to_file(results_dict)
+write_solutions_to_file(results_dict)
+# with open("solution_pool.json", "w+") as f:
+#     json.dump(solution_pool, f)

@@ -72,28 +72,29 @@ while not reduced_is_simulation_complete(roadQueues, time):
             (quickest_road, time, time + travel_time, time + travel_time)
         ]
         # print(time, vehicle, roadTravelTime, quickest_road)
-        print(
-            "I am vehicle",
-            vehicle,
-            ". I am choosing",
-            quickest_road,
-            "at time",
-            time,
-            "with travel time",
-            travel_time,
-            "and ETA of",
-            time + travel_time,
-            ". The alternative is",
-            slow_road,
-            "with travel time",
-            slow_tt,
-            "and ETA of",
-            time + slow_tt,
-        )
+        # print(
+        #     "I am vehicle",
+        #     vehicle,
+        #     ". I am choosing",
+        #     quickest_road,
+        #     "at time",
+        #     time,
+        #     "with travel time",
+        #     travel_time,
+        #     "and ETA of",
+        #     time + travel_time,
+        #     ". The alternative is",
+        #     slow_road,
+        #     "with travel time",
+        #     slow_tt,
+        #     "and ETA of",
+        #     time + slow_tt,
+        # )
+        # print({r:x for r,x in roadTravelTime.items()})
         # print({r:len(x) for r,x in roadQueues.items()})
         solution.append(quickest_road)
-        time_out_car[quickest_road][round(time + travel_time)] = (
-            time_out_car[quickest_road][round(time + travel_time)] + 1
+        time_out_car[quickest_road][round(time + roadTravelTime[quickest_road])] = (
+                time_out_car[quickest_road].get(round(time + roadTravelTime[quickest_road]), 0) + 1
         )
 
     if num_vehicles_arrived == 0:
